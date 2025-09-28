@@ -1,4 +1,6 @@
 import { connect } from "cloudflare:sockets";
+// import { createHash, createDecipheriv } from "node:crypto";
+// import { Buffer } from "node:buffer";
 
 // Variables
 const rootDomain = "mazlana.biz.id"; // Ganti dengan domain utama kalian
@@ -22,6 +24,12 @@ const PORTS = [443, 80];
 const PROTOCOLS = [atob(horse), atob(flash), "ss"];
 const KV_PRX_URL = "https://raw.githubusercontent.com/FoolVPN-ID/Nautica/refs/heads/main/kvProxyList.json";
 const PRX_BANK_URL = "https://raw.githubusercontent.com/jaka2m/botak/refs/heads/main/cek/proxyList.txt";
+const DNS_SERVER_ADDRESS = "8.8.8.8";
+const DNS_SERVER_PORT = 53;
+const RELAY_SERVER_UDP = {
+  host: "udp-relay.hobihaus.space", // Kontribusi atau cek relay publik disini: https://hub.docker.com/r/kelvinzer0/udp-relay
+  port: 7300,
+};
 const PRX_HEALTH_CHECK_API = "https://id1.foolvpn.me/api/v1/check";
 const CONVERTER_URL = "https://api.foolvpn.me/convert";
 const PRX_PER_PAGE = 24;
@@ -523,7 +531,15 @@ async function websocketHandler(request) {
       new WritableStream({
         async write(chunk, controller) {
           if (isDNS) {
-            return handleUDPOutbound(DNS_SERVER_ADDRESS, DNS_SERVER_PORT, chunk, webSocket, null, log);
+            return handleUDPOutbound(
+              DNS_SERVER_ADDRESS,
+              DNS_SERVER_PORT,
+              chunk,
+              webSocket,
+              null,
+              log,
+              RELAY_SERVER_UDP
+            );
           }
           if (remoteSocketWrapper.value) {
             const writer = remoteSocketWrapper.value.writable.getWriter();
@@ -555,20 +571,25 @@ async function websocketHandler(request) {
           if (protocolHeader.isUDP) {
             if (protocolHeader.portRemote === 53) {
               isDNS = true;
-            } else {
-              // return handleUDPOutbound(protocolHeader.addressRemote, protocolHeader.portRemote, chunk, webSocket, protocolHeader.version, log);
-              throw new Error("UDP only support for DNS port 53");
+              return handleUDPOutbound(
+                DNS_SERVER_ADDRESS,
+                DNS_SERVER_PORT,
+                chunk,
+                webSocket,
+                protocolHeader.version,
+                log,
+                RELAY_SERVER_UDP
+              );
             }
-          }
 
-          if (isDNS) {
             return handleUDPOutbound(
-              DNS_SERVER_ADDRESS,
-              DNS_SERVER_PORT,
+              protocolHeader.addressRemote,
+              protocolHeader.portRemote,
               chunk,
               webSocket,
               protocolHeader.version,
-              log
+              log,
+              RELAY_SERVER_UDP
             );
           }
 
@@ -664,18 +685,25 @@ async function handleTCPOutBound(
   remoteSocketToWS(tcpSocket, webSocket, responseHeader, retry, log);
 }
 
-async function handleUDPOutbound(targetAddress, targetPort, udpChunk, webSocket, responseHeader, log) {
+async function handleUDPOutbound(targetAddress, targetPort, dataChunk, webSocket, responseHeader, log, relay) {
   try {
     let protocolHeader = responseHeader;
+
     const tcpSocket = connect({
-      hostname: targetAddress,
-      port: targetPort,
+      hostname: relay.host,
+      port: relay.port,
     });
 
-    log(`Connected to ${targetAddress}:${targetPort}`);
+    const header = `udp:${targetAddress}:${targetPort}`;
+    const headerBuffer = new TextEncoder().encode(header);
+    const separator = new Uint8Array([0x7c]); // "|"
+    const relayMessage = new Uint8Array(headerBuffer.length + separator.length + dataChunk.byteLength);
+    relayMessage.set(headerBuffer, 0);
+    relayMessage.set(separator, headerBuffer.length);
+    relayMessage.set(new Uint8Array(dataChunk), headerBuffer.length + separator.length);
 
     const writer = tcpSocket.writable.getWriter();
-    await writer.write(udpChunk);
+    await writer.write(relayMessage);
     writer.releaseLock();
 
     await tcpSocket.readable.pipeTo(
@@ -694,12 +722,12 @@ async function handleUDPOutbound(targetAddress, targetPort, udpChunk, webSocket,
           log(`UDP connection to ${targetAddress} closed`);
         },
         abort(reason) {
-          console.error(`UDP connection to ${targetPort} aborted due to ${reason}`);
+          console.error(`UDP connection aborted due to ${reason}`);
         },
       })
     );
   } catch (e) {
-    console.error(`Error while handling UDP outbound, error ${e.message}`);
+    console.error(`Error while handling UDP outbound: ${e.message}`);
   }
 }
 
