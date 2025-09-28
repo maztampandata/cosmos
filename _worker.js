@@ -437,7 +437,7 @@ export default {
         }
       }
 
-      // Return a simple JSON response instead of HTML content
+      // Return a simple JSON response with usage documentation
       return new Response(JSON.stringify({
         message: "API is running",
         endpoints: {
@@ -447,6 +447,34 @@ export default {
           "/api/v1/domains/put": "Register domain",
           "/api/v1/sub": "Get subscription",
           "/api/v1/myip": "Get IP information"
+        },
+        usage: {
+          description: "API usage documentation",
+          endpoints: {
+            "/api/proxies": {
+              description: "Get proxy list with optional filtering and limiting",
+              parameters: {
+                "cc": {
+                  description: "Filter by country codes (comma-separated for multiple)",
+                  example: "/api/proxies?cc=SG,ID,US"
+                },
+                "limit": {
+                  description: "Limit the number of results returned",
+                  example: "/api/proxies?limit=10"
+                },
+                "prx-list": {
+                  description: "Custom proxy list URL",
+                  example: "/api/proxies?prx-list=https://example.com/proxylist.txt"
+                }
+              },
+              examples: [
+                "/api/proxies",
+                "/api/proxies?cc=SG",
+                "/api/proxies?cc=SG,ID&limit=5",
+                "/api/proxies?limit=20"
+              ]
+            }
+          }
         }
       }), {
         status: 200,
