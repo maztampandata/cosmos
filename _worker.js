@@ -67,6 +67,41 @@ async function cachedFetch(request, ttl = 600) {
   return response;
 }
 
+// Cache for health check results
+const healthCheckCache = new Map();
+const HEALTH_CHECK_CACHE_TTL = 300000; // 5 minutes
+
+async function checkPrxHealth(prxIP, prxPort) {
+  const cacheKey = `${prxIP}:${prxPort}`;
+  const cached = healthCheckCache.get(cacheKey);
+  
+  // Check if we have a valid cached result
+  if (cached && Date.now() - cached.timestamp < HEALTH_CHECK_CACHE_TTL) {
+    return cached.result;
+  }
+  
+  // If not in cache or expired, make the API call
+  try {
+    const req = await fetch(`${PRX_HEALTH_CHECK_API}?ip=${prxIP}:${prxPort}`);
+    const result = await req.json();
+    
+    // Store in cache
+    healthCheckCache.set(cacheKey, {
+      result: result,
+      timestamp: Date.now()
+    });
+    
+    return result;
+  } catch (error) {
+    // Return a default error response
+    return {
+      status: "ERROR",
+      delay: null,
+      colo: null
+    };
+  }
+}
+
 async function getKVPrxList(kvPrxUrl = KV_PRX_URL) {
   if (!kvPrxUrl) {
     throw new Error("No URL Provided!");
@@ -140,7 +175,10 @@ async function getProxyData(prxList, limit = null) {
   const result = [];
   const maxResults = limit || prxList.length;
   
-  for (let i = 0; i < Math.min(maxResults, prxList.length); i++) {
+  // Limit the number of proxies we process to improve performance
+  const processLimit = Math.min(maxResults, 50); // Process at most 50 proxies
+  
+  for (let i = 0; i < Math.min(processLimit, prxList.length); i++) {
     const prx = prxList[i];
     const { prxIP, prxPort, country, org } = prx;
     
@@ -1043,11 +1081,6 @@ function safeCloseWebSocket(socket) {
   } catch (error) {
     console.error("safeCloseWebSocket error", error);
   }
-}
-
-async function checkPrxHealth(prxIP, prxPort) {
-  const req = await fetch(`${PRX_HEALTH_CHECK_API}?ip=${prxIP}:${prxPort}`);
-  return await req.json();
 }
 
 // Helpers
