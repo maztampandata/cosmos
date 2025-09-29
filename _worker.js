@@ -42,12 +42,37 @@ const CORS_HEADER_OPTIONS = {
   "Access-Control-Max-Age": "86400",
 };
 
+// Cache fetch helper
+async function cachedFetch(request, ttl = 600) {
+  const cache = caches.default;
+  const cacheKey = typeof request === "string" ? new Request(request) : request;
+
+  // Try to get from cache first
+  let response = await cache.match(cacheKey);
+  if (response) {
+    return response;
+  }
+
+  // If not in cache, fetch from origin
+  response = await fetch(request);
+  if (response.ok) {
+    // Clone and add Cache-Control header
+    let res = new Response(response.body, response);
+    res.headers.append("Cache-Control", `max-age=${ttl}`);
+    // Store in cache
+    await cache.put(cacheKey, res.clone());
+    return res;
+  }
+
+  return response;
+}
+
 async function getKVPrxList(kvPrxUrl = KV_PRX_URL) {
   if (!kvPrxUrl) {
     throw new Error("No URL Provided!");
   }
 
-  const kvPrx = await fetch(kvPrxUrl);
+  const kvPrx = await cachedFetch(kvPrxUrl, 600); // Cache for 10 minutes
   if (kvPrx.status == 200) {
     return await kvPrx.json();
   } else {
@@ -67,7 +92,7 @@ async function getPrxList(prxBankUrl = PRX_BANK_URL) {
     throw new Error("No URL Provided!");
   }
 
-  const prxBank = await fetch(prxBankUrl);
+  const prxBank = await cachedFetch(prxBankUrl, 600); // Cache for 10 minutes
   if (prxBank.status == 200) {
     const text = (await prxBank.text()) || "";
 
