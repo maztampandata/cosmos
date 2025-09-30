@@ -189,40 +189,39 @@ export default {
             });
           }
         } else if (apiPath.startsWith("/sub")) {
-          const filterCC = url.searchParams.get("cc")?.split(",") || [];
-          const filterPort = url.searchParams.get("port")?.split(",") || PORTS;
-          const filterVPN = url.searchParams.get("vpn")?.split(",") || PROTOCOLS;
-          const filterLimit = parseInt(url.searchParams.get("limit")) ;
-          const filterFormat = url.searchParams.get("format") || "raw";
-          const fillerDomain = url.searchParams.get("domain") || APP_DOMAIN;
+          // /sub: allow country and format. Restore UUID and converter POST behavior.
           const countryCode = url.searchParams.get("country") || null;
-
+          const filterFormat = url.searchParams.get("format") || "raw";
           const prxBankUrl = url.searchParams.get("prx-list") || env.PRX_BANK_URL;
-          const prxList = await getPrxList(prxBankUrl, countryCode)
-            .then((prxs) => {
-              // Filter CC (jika country parameter tidak digunakan)
-              if (filterCC.length && !countryCode) {
-                return prxs.filter((prx) => filterCC.includes(prx.country));
-              }
-              return prxs;
-            })
-            .then((prxs) => {
-              // shuffle result
-              shuffleArray(prxs);
-              return prxs;
-            });
+
+          const prxList = await getPrxList(prxBankUrl, countryCode);
+          shuffleArray(prxList);
+
+          // defaults
+          const filterPort = PORTS;
+          const filterVPN = PROTOCOLS;
+          const filterLimit = null; // no limit
+          const fillerDomain = APP_DOMAIN;
 
           const uuid = crypto.randomUUID();
-          const result = [];
+          const allUris = []; // for converter
+          const structured = [];
+
           for (const prx of prxList) {
-            const uri = new URL(`${atob(horse)}://${fillerDomain}`);
-            uri.searchParams.set("encryption", "none");
-            uri.searchParams.set("type", "ws");
-            uri.searchParams.set("host", APP_DOMAIN);
+            const entry = {
+              ip: prx.prxIP,
+              org: prx.org || "",
+              country: prx.country || "",
+              tls: [],
+              non_tls: [],
+            };
 
             for (const port of filterPort) {
               for (const protocol of filterVPN) {
-                if (result.length >= filterLimit) break;
+                const uri = new URL(`${atob(horse)}://${fillerDomain}`);
+                uri.searchParams.set("encryption", "none");
+                uri.searchParams.set("type", "ws");
+                uri.searchParams.set("host", APP_DOMAIN);
 
                 uri.protocol = protocol;
                 uri.port = port.toString();
@@ -243,29 +242,37 @@ export default {
                 uri.searchParams.set("sni", port == 80 && protocol == atob(flash) ? "" : APP_DOMAIN);
                 uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
 
-                uri.hash = `${result.length + 1} ${getFlagEmoji(prx.country)} ${prx.org} WS ${
-                  port == 443 ? "TLS" : "NTLS"
-                } [${serviceName}]`;
-                result.push(uri.toString());
+                const uriStr = uri.toString();
+                allUris.push(uriStr);
+
+                if (port == 443) {
+                  entry.tls.push(uriStr);
+                } else {
+                  entry.non_tls.push(uriStr);
+                }
               }
             }
+
+            structured.push(entry);
           }
 
           let finalResult = "";
           switch (filterFormat) {
             case "raw":
-              finalResult = result.join("\n");
+              // return structured JSON for raw
+              finalResult = JSON.stringify(structured);
               break;
             case atob(v2):
-              finalResult = btoa(result.join("\n"));
+              finalResult = btoa(JSON.stringify(structured));
               break;
             case atob(neko):
             case "sfa":
             case "bfr":
+              // converter wants comma-separated URIs
               const res = await fetch(CONVERTER_URL, {
                 method: "POST",
                 body: JSON.stringify({
-                  url: result.join(","),
+                  url: allUris.join(","),
                   format: filterFormat,
                   template: "cf",
                 }),
@@ -281,12 +288,15 @@ export default {
                 });
               }
               break;
+            default:
+              finalResult = JSON.stringify(structured);
           }
 
           return new Response(finalResult, {
             status: 200,
             headers: {
               ...CORS_HEADER_OPTIONS,
+              'Content-Type': filterFormat === 'raw' || !filterFormat ? 'application/json' : undefined,
             },
           });
         } else if (apiPath.startsWith("/myip")) {
