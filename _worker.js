@@ -247,7 +247,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
                 uri.searchParams.set("sni", port == 80 && protocol == atob(flash) ? "" : APP_DOMAIN);
                 uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
 
-                uri.hash = `${result.length + 1} ${getFlagEmoji(prx.country)} ${prx.org} WS ${
+                uri.hash = `${result.length + 1}  ${prx.org} WS ${
                   port == 443 ? "TLS" : "NTLS"
                 } [${serviceName}]`;
                 result.push(uri.toString());
