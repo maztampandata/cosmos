@@ -101,18 +101,19 @@ async function checkPrxHealth(prxIP, prxPort) {
     };
   }
 }
-
 async function getKVPrxList(kvPrxUrl = KV_PRX_URL) {
   if (!kvPrxUrl) {
     throw new Error("No URL Provided!");
   }
 
-  const kvPrx = await cachedFetch(kvPrxUrl, 600); // Cache for 10 minutes
+  const kvPrx = await cachedFetch(kvPrxUrl, 600); // Cache 10 menit
   if (kvPrx.status == 200) {
     return await kvPrx.json();
   } else {
     return {};
   }
+} // <<< ini tadi hilang
+
 async function getPrxList(prxBankUrl = PRX_BANK_URL, cc = null) {
   /**
    * Format file negara:
@@ -126,15 +127,19 @@ async function getPrxList(prxBankUrl = PRX_BANK_URL, cc = null) {
     // Kalau ada filter negara → fetch masing-masing file
     for (const code of cc) {
       const url = `https://raw.githubusercontent.com/maztampandata/cfproxies/main/proxies/${code.toUpperCase()}.txt`;
-      const res = await cachedFetch(url, 600);
-      if (res.status == 200) {
-        text += (await res.text()) + "\n";
+      try {
+        const res = await cachedFetch(url, 600);
+        if (res.status === 200) {
+          text += (await res.text()) + "\n";
+        }
+      } catch (e) {
+        console.log(`Gagal fetch ${code}.txt →`, e.message);
       }
     }
   } else {
     // Default: ALL.txt
     const res = await cachedFetch(prxBankUrl, 600);
-    if (res.status == 200) {
+    if (res.status === 200) {
       text = await res.text();
     }
   }
