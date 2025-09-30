@@ -143,36 +143,6 @@ export default {
             "Content-Type": "application/json",
           },
         });
-      } else if (url.pathname.startsWith("/api/proxy")) {
-        // Endpoint /api/proxy untuk mendapatkan proxy berdasarkan negara
-        const filterCC = url.searchParams.get("cc")?.split(",") || [];
-        const filterPort = url.searchParams.get("port")?.split(",") || PORTS;
-        const filterLimit = parseInt(url.searchParams.get("limit")) || 10;
-        
-        const prxList = await getPrxList()
-          .then((prxs) => {
-            // Filter berdasarkan negara
-            if (filterCC.length) {
-              return prxs.filter((prx) => filterCC.includes(prx.country));
-            }
-            return prxs;
-          })
-          // Filter berdasarkan port
-          .then((prxs) => {
-            return prxs.filter((prx) => filterPort.includes(prx.prxPort));
-          })
-          // Acak dan batasi jumlah
-          .then((prxs) => {
-            return prxs.sort(() => Math.random() - 0.5).slice(0, filterLimit);
-          });
-          
-        return new Response(JSON.stringify(prxList), {
-          status: 200,
-          headers: {
-            ...CORS_HEADER_OPTIONS,
-            "Content-Type": "application/json",
-          },
-        });
       } else if (url.pathname.startsWith("/api/v1")) {
         const apiPath = url.pathname.replace("/api/v1", "");
 
@@ -222,7 +192,7 @@ export default {
           const filterCC = url.searchParams.get("cc")?.split(",") || [];
           const filterPort = url.searchParams.get("port")?.split(",") || PORTS;
           const filterVPN = url.searchParams.get("vpn")?.split(",") || PROTOCOLS;
-          const filterLimit = parseInt(url.searchParams.get("limit")) || 10;
+          const filterLimit = parseInt(url.searchParams.get("limit")) ;
           const filterFormat = url.searchParams.get("format") || "raw";
           const fillerDomain = url.searchParams.get("domain") || APP_DOMAIN;
           const countryCode = url.searchParams.get("country") || null;
