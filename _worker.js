@@ -1,6 +1,4 @@
 import { connect } from "cloudflare:sockets";
-// import { createHash, createDecipheriv } from "node:crypto";
-// import { Buffer } from "node:buffer";
 
 // Variables
 const rootDomain = "mazlana.biz.id"; // Ganti dengan domain utama kalian
@@ -22,17 +20,13 @@ const neko = "Y2xhc2g=";
 const APP_DOMAIN = `${serviceName}.${rootDomain}`;
 const PORTS = [443, 80];
 const PROTOCOLS = [atob(horse), atob(flash), "ss"];
-const PRX_BANK_URL = "https://raw.githubusercontent.com/maztampandata/cfproxies/main/proxies/ALL.txt";
-const DONATE_LINK = "https://github.com/jaka1m/project/raw/main/BAYAR.jpg";
-const TELEGRAM_USERNAME = "sampiiiiu";
-const WHATSAPP_NUMBER = "6282339191527";
+const KV_PRX_URL = "https://raw.githubusercontent.com/maztampandata/cfproxies/refs/heads/main/proxies/ALL.txt";
+const PRX_BANK_BASE = "https://raw.githubusercontent.com/maztampandata/cfproxies/refs/heads/main/proxies";
+const PRX_BANK_URL = `${PRX_BANK_BASE}/ALL.txt`;
 const DNS_SERVER_ADDRESS = "8.8.8.8";
 const DNS_SERVER_PORT = 53;
 const PRX_HEALTH_CHECK_API = "https://id1.foolvpn.me/api/v1/check";
 const CONVERTER_URL = "https://api.foolvpn.me/convert";
-const BAD_WORDS_LIST =
-  "https://gist.githubusercontent.com/adierebel/a69396d79b787b84d89b45002cb37cd6/raw/6df5f8728b18699496ad588b3953931078ab9cf1/kata-kasar.txt";
-const PRX_PER_PAGE = 24;
 const WS_READY_STATE_OPEN = 1;
 const WS_READY_STATE_CLOSING = 2;
 const CORS_HEADER_OPTIONS = {
@@ -41,7 +35,18 @@ const CORS_HEADER_OPTIONS = {
   "Access-Control-Max-Age": "86400",
 };
 
-// Fungsi getKVPrxList telah dihapus
+async function getKVPrxList(kvPrxUrl = KV_PRX_URL) {
+  if (!kvPrxUrl) {
+    throw new Error("No URL Provided!");
+  }
+
+  const kvPrx = await fetch(kvPrxUrl);
+  if (kvPrx.status == 200) {
+    return await kvPrx.json();
+  } else {
+    return {};
+  }
+}
 
 async function getPrxList(prxBankUrl = PRX_BANK_URL, countryCode = null) {
   /**
@@ -55,46 +60,61 @@ async function getPrxList(prxBankUrl = PRX_BANK_URL, countryCode = null) {
     throw new Error("No URL Provided!");
   }
 
-  // Jika countryCode disediakan, ubah URL untuk mengambil file negara tertentu
-  try {
-    const res = await fetch(prxBankUrl);
-    if (!res.ok) return [];
-
-    const text = await res.text();
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l && !l.startsWith("#"));
-
-    const prxList = lines
-      .map((line) => {
-        // expected: ip,port,CC,org
-        const parts = line.split(",");
-        const ip = parts[0]?.trim();
-        const port = parts[1]?.trim() || "443";
-        const country = (parts[2] || "").trim().toUpperCase();
-        const org = (parts.slice(3).join(",") || "").trim();
-        return {
-          prxIP: ip,
-          prxPort: port,
-          country: country,
-          org: org,
-        };
-      })
-      .filter((p) => p.prxIP);
-
-    if (countryCode) {
-      const cc = countryCode.toUpperCase();
-      return prxList.filter((p) => p.country === cc);
+  // Handle country-specific files
+  if (countryCode) {
+    const countryUrl = `${PRX_BANK_BASE}/${countryCode.toUpperCase()}.txt`;
+    const countryPrx = await fetch(countryUrl);
+    if (countryPrx.status === 200) {
+      prxBankUrl = countryUrl;
     }
-
-    return prxList;
-  } catch (e) {
-    console.error("getPrxList error", e);
-    return [];
   }
 
+  const prxBank = await fetch(prxBankUrl);
+  if (prxBank.status == 200) {
+    const text = (await prxBank.text()) || "";
+
+    const prxString = text.split("\n").filter(Boolean);
+    cachedPrxList = prxString
+      .map((entry) => {
+        const [prxIP, prxPort, country, org] = entry.split(",");
+        return {
+          prxIP: prxIP || "Unknown",
+          prxPort: prxPort || "Unknown",
+          country: country || (countryCode ? countryCode.toUpperCase() : "Unknown"),
+          org: org || "Unknown Org",
+        };
+      })
+      .filter(Boolean);
+  }
+
+  return cachedPrxList;
 }
+
+
+async function reverseWeb(request, target, targetPath) {
+  const targetUrl = new URL(request.url);
+  const targetChunk = target.split(":");
+
+  targetUrl.hostname = targetChunk[0];
+  targetUrl.port = targetChunk[1]?.toString() || "443";
+  targetUrl.pathname = targetPath || targetUrl.pathname;
+
+  const modifiedRequest = new Request(targetUrl, request);
+
+  modifiedRequest.headers.set("X-Forwarded-Host", request.headers.get("Host"));
+
+  const response = await fetch(modifiedRequest);
+
+  const newResponse = new Response(response.body, response);
+  for (const [key, value] of Object.entries(CORS_HEADER_OPTIONS)) {
+    newResponse.headers.set(key, value);
+  }
+  newResponse.headers.set("X-Proxied-By", "Cloudflare Worker");
+
+  return newResponse;
+}
+
+// HTML rendering removed - API only
 
 export default {
   async fetch(request, env, ctx) {
@@ -107,29 +127,34 @@ export default {
         isApiReady = true;
       }
 
-      // Semua endpoint dan fungsi yang menampilkan web telah dihapus
-      if (
-        upgradeHeader === "websocket" ||
-        url.pathname.startsWith("/dashboard") ||
-        url.pathname.startsWith("/profile") ||
-        url.pathname.startsWith("/proxy") ||
-        url.pathname.startsWith("/settings") ||
-        url.pathname.startsWith("/logout") ||
-        url.pathname.endsWith(".html")
-      ) {
-        return new Response(
-          JSON.stringify({
-            error: "Endpoint web dihapus",
-            info: "Semua endpoint dan fungsi yang menampilkan web telah dihapus.",
-          }),
-          {
-            status: 404,
-            headers: {
-              ...CORS_HEADER_OPTIONS,
-              'Content-Type': 'application/json',
-            },
+      // Handle prx client
+      // Handle country-specific proxy files
+      if (url.pathname.match(/^\/(\w{2})\.txt$/)) {
+        const countryCode = url.pathname.match(/^\/(\w{2})/)[1];
+        const prxList = await getPrxList(null, countryCode);
+        return new Response(JSON.stringify(prxList), {
+          status: 200,
+          headers: {
+            ...CORS_HEADER_OPTIONS,
+            "Content-Type": "application/json"
           }
-        );
+        });
+      } else if (upgradeHeader === "websocket") {
+        const prxMatch = url.pathname.match(/^\/(.+[:=-]\d+)$/);
+
+        if (url.pathname.length == 3 || url.pathname.match(",")) {
+          // Contoh: /ID, /SG, dll
+          const prxKeys = url.pathname.replace("/", "").toUpperCase().split(",");
+          const prxKey = prxKeys[Math.floor(Math.random() * prxKeys.length)];
+          const kvPrx = await getKVPrxList();
+
+          prxIP = kvPrx[prxKey][Math.floor(Math.random() * kvPrx[prxKey].length)];
+
+          return await websocketHandler(request);
+        } else if (prxMatch) {
+          prxIP = prxMatch[1];
+          return await websocketHandler(request);
+        }
       }
 
       if (url.pathname.startsWith("/check")) {
@@ -146,21 +171,7 @@ export default {
       } else if (url.pathname.startsWith("/api/v1")) {
         const apiPath = url.pathname.replace("/api/v1", "");
 
-        if (apiPath.startsWith("/status")) {
-          // Simple endpoint untuk status API
-          return new Response(JSON.stringify({
-            status: "ok",
-            message: "API is running",
-            timestamp: new Date().toISOString(),
-            version: "1.0.0"
-          }), {
-            status: 200,
-            headers: {
-              ...CORS_HEADER_OPTIONS,
-              "Content-Type": "application/json",
-            },
-          });
-        } else if (apiPath.startsWith("/domains")) {
+        if (apiPath.startsWith("/domains")) {
           if (!isApiReady) {
             return new Response("Api not ready", {
               status: 500,
@@ -189,39 +200,33 @@ export default {
             });
           }
         } else if (apiPath.startsWith("/sub")) {
-          // /sub: allow country and format. Restore UUID and converter POST behavior.
-          const countryCode = url.searchParams.get("country") || null;
-          const filterFormat = url.searchParams.get("format") || "raw";
-          const prxBankUrl = url.searchParams.get("prx-list") || env.PRX_BANK_URL;
+const filterCC = url.searchParams.get("cc")?.split(",") || ["ALL"];
+const filterPort = url.searchParams.get("port")?.split(",") || PORTS;
+const filterVPN = url.searchParams.get("vpn")?.split(",") || PROTOCOLS;
+const filterLimit = parseInt(url.searchParams.get("limit")) || 1000;
+const filterFormat = url.searchParams.get("format") || "raw";
+const fillerDomain = url.searchParams.get("domain") || APP_DOMAIN;
 
-          const prxList = await getPrxList(prxBankUrl, countryCode);
+const prxBankUrl = url.searchParams.get("prx-list") || PRX_BANK_URL;
+let prxList = await getPrxList(prxBankUrl);          // Filter CC
+          if (filterCC.length && !filterCC.includes("ALL")) {
+            prxList = prxList.filter((prx) => filterCC.includes(prx.country));
+          }
+
+          // Shuffle result
           shuffleArray(prxList);
 
-          // defaults
-          const filterPort = PORTS;
-          const filterVPN = PROTOCOLS;
-          const filterLimit = null; // no limit
-          const fillerDomain = APP_DOMAIN;
-
           const uuid = crypto.randomUUID();
-          const allUris = []; // for converter
-          const structured = [];
-
+          const result = [];
           for (const prx of prxList) {
-            const entry = {
-              ip: prx.prxIP,
-              org: prx.org || "",
-              country: prx.country || "",
-              tls: [],
-              non_tls: [],
-            };
+            const uri = new URL(`${atob(horse)}://${fillerDomain}`);
+            uri.searchParams.set("encryption", "none");
+            uri.searchParams.set("type", "ws");
+            uri.searchParams.set("host", APP_DOMAIN);
 
             for (const port of filterPort) {
               for (const protocol of filterVPN) {
-                const uri = new URL(`${atob(horse)}://${fillerDomain}`);
-                uri.searchParams.set("encryption", "none");
-                uri.searchParams.set("type", "ws");
-                uri.searchParams.set("host", APP_DOMAIN);
+                if (result.length >= filterLimit) break;
 
                 uri.protocol = protocol;
                 uri.port = port.toString();
@@ -242,37 +247,29 @@ export default {
                 uri.searchParams.set("sni", port == 80 && protocol == atob(flash) ? "" : APP_DOMAIN);
                 uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
 
-                const uriStr = uri.toString();
-                allUris.push(uriStr);
-
-                if (port == 443) {
-                  entry.tls.push(uriStr);
-                } else {
-                  entry.non_tls.push(uriStr);
-                }
+                uri.hash = `${result.length + 1} ${getFlagEmoji(prx.country)} ${prx.org} WS ${
+                  port == 443 ? "TLS" : "NTLS"
+                } [${serviceName}]`;
+                result.push(uri.toString());
               }
             }
-
-            structured.push(entry);
           }
 
           let finalResult = "";
           switch (filterFormat) {
             case "raw":
-              // return structured JSON for raw
-              finalResult = JSON.stringify(structured);
+              finalResult = result.join("\n");
               break;
             case atob(v2):
-              finalResult = btoa(JSON.stringify(structured));
+              finalResult = btoa(result.join("\n"));
               break;
             case atob(neko):
             case "sfa":
             case "bfr":
-              // converter wants comma-separated URIs
               const res = await fetch(CONVERTER_URL, {
                 method: "POST",
                 body: JSON.stringify({
-                  url: allUris.join(","),
+                  url: result.join(","),
                   format: filterFormat,
                   template: "cf",
                 }),
@@ -288,15 +285,12 @@ export default {
                 });
               }
               break;
-            default:
-              finalResult = JSON.stringify(structured);
           }
 
           return new Response(finalResult, {
             status: 200,
             headers: {
               ...CORS_HEADER_OPTIONS,
-              'Content-Type': filterFormat === 'raw' || !filterFormat ? 'application/json' : undefined,
             },
           });
         } else if (apiPath.startsWith("/myip")) {
@@ -319,20 +313,7 @@ export default {
       }
 
       const targetReversePrx = env.REVERSE_PRX_TARGET || "example.com";
-        // reverseWeb function is not defined, so return error response
-        return new Response(
-          JSON.stringify({
-            error: "reverseWeb is not available",
-            info: "Parameter atau fungsi reverseWeb tidak ditemukan. Pastikan parameter dan endpoint sudah benar.",
-          }),
-          {
-            status: 400,
-            headers: {
-              ...CORS_HEADER_OPTIONS,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+      return await reverseWeb(request, targetReversePrx);
     } catch (err) {
       return new Response(`An error occurred: ${err.toString()}`, {
         status: 500,
@@ -879,13 +860,7 @@ function reverse(s) {
   return s.split("").reverse().join("");
 }
 
-function getFlagEmoji(isoCode) {
-  const codePoints = isoCode
-    .toUpperCase()
-    .split("")
-    .map((char) => 127397 + char.charCodeAt(0));
-  return String.fromCodePoint(...codePoints);
-}
+// Removed HTML helper functions
 
 // CloudflareApi Class
 class CloudflareApi {
@@ -962,3 +937,4 @@ class CloudflareApi {
     return res.status;
   }
 }
+
