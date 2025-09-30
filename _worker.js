@@ -22,7 +22,7 @@ const neko = "Y2xhc2g=";
 const APP_DOMAIN = `${serviceName}.${rootDomain}`;
 const PORTS = [443, 80];
 const PROTOCOLS = [atob(horse), atob(flash), "ss"];
-const KV_PRX_URL = "https://raw.githubusercontent.com/FoolVPN-ID/Nautica/refs/heads/main/kvProxyList.json";
+const KV_PRX_URL = "https://raw.githubusercontent.com/maztampandata/cfproxies/main/proxies/ALL.txt";
 const PRX_BANK_URL = "https://raw.githubusercontent.com/FoolVPN-ID/Nautica/refs/heads/main/proxyList.txt";
 const DNS_SERVER_ADDRESS = "8.8.8.8";
 const DNS_SERVER_PORT = 53;
@@ -113,40 +113,48 @@ async function getKVPrxList(kvPrxUrl = KV_PRX_URL) {
   } else {
     return {};
   }
-}
-
-async function getPrxList(prxBankUrl = PRX_BANK_URL) {
+async function getPrxList(prxBankUrl = PRX_BANK_URL, cc = null) {
   /**
-   * Format:
-   *
+   * Format file negara:
    * <IP>,<Port>,<Country ID>,<ORG>
-   * Contoh:
-   * 1.1.1.1,443,SG,Cloudflare Inc.
    */
-  if (!prxBankUrl) {
-    throw new Error("No URL Provided!");
+  if (!prxBankUrl) throw new Error("No URL Provided!");
+
+  let text = "";
+
+  if (cc && cc.length > 0) {
+    // Kalau ada filter negara → fetch masing-masing file
+    for (const code of cc) {
+      const url = `https://raw.githubusercontent.com/maztampandata/cfproxies/main/proxies/${code.toUpperCase()}.txt`;
+      const res = await cachedFetch(url, 600);
+      if (res.status == 200) {
+        text += (await res.text()) + "\n";
+      }
+    }
+  } else {
+    // Default: ALL.txt
+    const res = await cachedFetch(prxBankUrl, 600);
+    if (res.status == 200) {
+      text = await res.text();
+    }
   }
 
-  const prxBank = await cachedFetch(prxBankUrl, 600); // Cache for 10 minutes
-  if (prxBank.status == 200) {
-    const text = (await prxBank.text()) || "";
-
-    const prxString = text.split("\n").filter(Boolean);
-    cachedPrxList = prxString
-      .map((entry) => {
-        const [prxIP, prxPort, country, org] = entry.split(",");
-        return {
-          prxIP: prxIP || "Unknown",
-          prxPort: prxPort || "Unknown",
-          country: country || "Unknown",
-          org: org || "Unknown Org",
-        };
-      })
-      .filter(Boolean);
-  }
+  const prxString = text.split("\n").filter(Boolean);
+  cachedPrxList = prxString
+    .map((entry) => {
+      const [prxIP, prxPort, country, org] = entry.split(",");
+      return {
+        prxIP: prxIP || "Unknown",
+        prxPort: prxPort || "Unknown",
+        country: country || "Unknown",
+        org: org || "Unknown Org",
+      };
+    })
+    .filter(Boolean);
 
   return cachedPrxList;
 }
+
 
 async function reverseWeb(request, target, targetPath) {
   const targetUrl = new URL(request.url);
@@ -318,12 +326,8 @@ export default {
         const limit = limitParam ? parseInt(limitParam) : null;
         
         // Get proxy list
-        let prxList = await getPrxList(prxBankUrl);
-        
-        // Filter by country if specified
-        if (countryFilter && countryFilter.length > 0) {
-          prxList = prxList.filter((prx) => countryFilter.includes(prx.country));
-        }
+        let prxList = await getPrxList(prxBankUrl, countryFilter);
+
         
         // Shuffle the list for random results
         shuffleArray(prxList);
