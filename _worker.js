@@ -260,7 +260,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
           const formattedResult = prxList.map(prx => {
             // TLS configs
             const config_tls = {
-              trojan: (() => {
+              tr: (() => {
                 const uri = new URL(`${atob(horse)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
@@ -274,7 +274,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
                 uri.hash = `${prx.org} WS TLS [${serviceName}]`;
                 return uri.toString();
               })(),
-              vless: (() => {
+              vl: (() => {
                 const uri = new URL(`${atob(flash)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
