@@ -260,7 +260,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
           const formattedResult = prxList.map(prx => {
             // TLS configs
             const config_tls = {
-              tr: (() => {
+              [atob(horse)]: (() => {
                 const uri = new URL(`${atob(horse)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
@@ -274,7 +274,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
                 uri.hash = `${prx.org} WS TLS [${serviceName}]`;
                 return uri.toString();
               })(),
-              vl: (() => {
+              [atob(flash)]: (() => {
                 const uri = new URL(`${atob(flash)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
@@ -307,7 +307,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
 
             // NTLS configs
             const config_ntls = {
-              tr: (() => {
+              [atob(horse)]: (() => {
                 const uri = new URL(`${atob(horse)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
@@ -321,7 +321,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
                 uri.hash = `${prx.org} WS NTLS [${serviceName}]`;
                 return uri.toString();
               })(),
-              vl: (() => {
+              [atob(flash)]: (() => {
                 const uri = new URL(`${atob(flash)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
