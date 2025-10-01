@@ -247,7 +247,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
                 uri.searchParams.set("sni", port == 80 && protocol == atob(flash) ? "" : APP_DOMAIN);
                 uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
 
-                uri.hash = `${result.length + 1}  ${prx.org} WS ${
+                uri.hash = `${result.length + 1} ${prx.org} WS ${
                   port == 443 ? "TLS" : "NTLS"
                 } [${serviceName}]`;
                 result.push(uri.toString());
@@ -256,12 +256,47 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
           }
 
           let finalResult = "";
+          // Build output with IP, PORT, ORGZ, CONFIG TLS, CONFIG NTLS
+          const formattedResult = prxList.map(prx => {
+            // TLS config
+            const tlsUri = (() => {
+              const uri = new URL(`${atob(horse)}://${fillerDomain}`);
+              uri.searchParams.set("encryption", "none");
+              uri.searchParams.set("type", "ws");
+              uri.searchParams.set("host", APP_DOMAIN);
+              uri.protocol = filterVPN[0] || atob(horse);
+              uri.port = "443";
+              uri.username = uuid;
+              uri.searchParams.set("security", "tls");
+              uri.searchParams.set("sni", APP_DOMAIN);
+              uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
+              uri.hash = `${prx.org} WS TLS [${serviceName}]`;
+              return uri.toString();
+            })();
+            // NTLS config
+            const ntlsUri = (() => {
+              const uri = new URL(`${atob(horse)}://${fillerDomain}`);
+              uri.searchParams.set("encryption", "none");
+              uri.searchParams.set("type", "ws");
+              uri.searchParams.set("host", APP_DOMAIN);
+              uri.protocol = filterVPN[0] || atob(horse);
+              uri.port = "80";
+              uri.username = uuid;
+              uri.searchParams.set("security", "none");
+              uri.searchParams.set("sni", "");
+              uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
+              uri.hash = `${prx.org} WS NTLS [${serviceName}]`;
+              return uri.toString();
+            })();
+            return `IP:${prx.prxIP} PORT:${prx.prxPort} ORGZ:${prx.org} CONFIG_TLS:${tlsUri} CONFIG_NTLS:${ntlsUri}`;
+          });
+
           switch (filterFormat) {
             case "raw":
-              finalResult = result.join("\n");
+              finalResult = formattedResult.join("\n");
               break;
             case atob(v2):
-              finalResult = btoa(result.join("\n"));
+              finalResult = btoa(formattedResult.join("\n"));
               break;
             case atob(neko):
             case "sfa":
@@ -269,7 +304,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
               const res = await fetch(CONVERTER_URL, {
                 method: "POST",
                 body: JSON.stringify({
-                  url: result.join(","),
+                  url: formattedResult.join(","),
                   format: filterFormat,
                   template: "cf",
                 }),
