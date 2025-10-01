@@ -256,7 +256,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
           }
 
           let finalResult = "";
-          // Build output with IP, PORT, ORGZ, CONFIG TLS, CONFIG NTLS
+          // Build output as JSON array for easy scraping
           const formattedResult = prxList.map(prx => {
             // TLS config
             const tlsUri = (() => {
@@ -288,15 +288,21 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
               uri.hash = `${prx.org} WS NTLS [${serviceName}]`;
               return uri.toString();
             })();
-            return `IP:${prx.prxIP} PORT:${prx.prxPort} ORGZ:${prx.org} CONFIG_TLS:${tlsUri} CONFIG_NTLS:${ntlsUri}`;
+            return {
+              ip: prx.prxIP,
+              port: prx.prxPort,
+              orgz: prx.org,
+              config_tls: tlsUri,
+              config_ntls: ntlsUri
+            };
           });
 
           switch (filterFormat) {
             case "raw":
-              finalResult = formattedResult.join("\n");
+              finalResult = JSON.stringify(formattedResult, null, 2);
               break;
             case atob(v2):
-              finalResult = btoa(formattedResult.join("\n"));
+              finalResult = btoa(JSON.stringify(formattedResult));
               break;
             case atob(neko):
             case "sfa":
@@ -304,7 +310,7 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
               const res = await fetch(CONVERTER_URL, {
                 method: "POST",
                 body: JSON.stringify({
-                  url: formattedResult.join(","),
+                  url: JSON.stringify(formattedResult),
                   format: filterFormat,
                   template: "cf",
                 }),
