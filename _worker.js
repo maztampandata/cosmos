@@ -258,63 +258,106 @@ let prxList = await getPrxList(prxBankUrl);          // Filter CC
           let finalResult = "";
           // Build output as JSON array for easy scraping
           const formattedResult = prxList.map(prx => {
-            const configs = [];
-            for (const protocol of filterVPN) {
-              // TLS config
-              const tlsUri = (() => {
-                const uri = new URL(`${protocol}://${fillerDomain}`);
+            // TLS configs
+            const config_tls = {
+              trojan: (() => {
+                const uri = new URL(`${atob(horse)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
                 uri.searchParams.set("host", APP_DOMAIN);
-                uri.protocol = protocol;
+                uri.protocol = atob(horse);
                 uri.port = "443";
                 uri.username = uuid;
                 uri.searchParams.set("security", "tls");
                 uri.searchParams.set("sni", APP_DOMAIN);
                 uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
                 uri.hash = `${prx.org} WS TLS [${serviceName}]`;
-                if (protocol === "ss") {
-                  uri.username = btoa(`none:${uuid}`);
-                  uri.searchParams.set(
-                    "plugin",
-                    `${atob(v2)}-plugin;tls;mux=0;mode=websocket;path=/${prx.prxIP}-${prx.prxPort};host=${APP_DOMAIN}`
-                  );
-                }
                 return uri.toString();
-              })();
-              // NTLS config
-              const ntlsUri = (() => {
-                const uri = new URL(`${protocol}://${fillerDomain}`);
+              })(),
+              vless: (() => {
+                const uri = new URL(`${atob(flash)}://${fillerDomain}`);
                 uri.searchParams.set("encryption", "none");
                 uri.searchParams.set("type", "ws");
                 uri.searchParams.set("host", APP_DOMAIN);
-                uri.protocol = protocol;
+                uri.protocol = atob(flash);
+                uri.port = "443";
+                uri.username = uuid;
+                uri.searchParams.set("security", "tls");
+                uri.searchParams.set("sni", APP_DOMAIN);
+                uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
+                uri.hash = `${prx.org} WS TLS [${serviceName}]`;
+                return uri.toString();
+              })(),
+              ss: (() => {
+                const uri = new URL(`ss://${fillerDomain}`);
+                uri.searchParams.set("encryption", "none");
+                uri.searchParams.set("type", "ws");
+                uri.searchParams.set("host", APP_DOMAIN);
+                uri.protocol = "ss";
+                uri.port = "443";
+                uri.username = btoa(`none:${uuid}`);
+                uri.searchParams.set("security", "tls");
+                uri.searchParams.set("sni", APP_DOMAIN);
+                uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
+                uri.searchParams.set("plugin", `${atob(v2)}-plugin;tls;mux=0;mode=websocket;path=/${prx.prxIP}-${prx.prxPort};host=${APP_DOMAIN}`);
+                uri.hash = `${prx.org} WS TLS [${serviceName}]`;
+                return uri.toString();
+              })()
+            };
+
+            // NTLS configs
+            const config_ntls = {
+              tr: (() => {
+                const uri = new URL(`${atob(horse)}://${fillerDomain}`);
+                uri.searchParams.set("encryption", "none");
+                uri.searchParams.set("type", "ws");
+                uri.searchParams.set("host", APP_DOMAIN);
+                uri.protocol = atob(horse);
                 uri.port = "80";
                 uri.username = uuid;
                 uri.searchParams.set("security", "none");
                 uri.searchParams.set("sni", "");
                 uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
                 uri.hash = `${prx.org} WS NTLS [${serviceName}]`;
-                if (protocol === "ss") {
-                  uri.username = btoa(`none:${uuid}`);
-                  uri.searchParams.set(
-                    "plugin",
-                    `${atob(v2)}-plugin;mux=0;mode=websocket;path=/${prx.prxIP}-${prx.prxPort};host=${APP_DOMAIN}`
-                  );
-                }
                 return uri.toString();
-              })();
-              configs.push({
-                protocol,
-                config_tls: tlsUri,
-                config_ntls: ntlsUri
-              });
-            }
+              })(),
+              vl: (() => {
+                const uri = new URL(`${atob(flash)}://${fillerDomain}`);
+                uri.searchParams.set("encryption", "none");
+                uri.searchParams.set("type", "ws");
+                uri.searchParams.set("host", APP_DOMAIN);
+                uri.protocol = atob(flash);
+                uri.port = "80";
+                uri.username = uuid;
+                uri.searchParams.set("security", "none");
+                uri.searchParams.set("sni", "");
+                uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
+                uri.hash = `${prx.org} WS NTLS [${serviceName}]`;
+                return uri.toString();
+              })(),
+              ss: (() => {
+                const uri = new URL(`ss://${fillerDomain}`);
+                uri.searchParams.set("encryption", "none");
+                uri.searchParams.set("type", "ws");
+                uri.searchParams.set("host", APP_DOMAIN);
+                uri.protocol = "ss";
+                uri.port = "80";
+                uri.username = btoa(`none:${uuid}`);
+                uri.searchParams.set("security", "none");
+                uri.searchParams.set("sni", "");
+                uri.searchParams.set("path", `/${prx.prxIP}-${prx.prxPort}`);
+                uri.searchParams.set("plugin", `${atob(v2)}-plugin;mux=0;mode=websocket;path=/${prx.prxIP}-${prx.prxPort};host=${APP_DOMAIN}`);
+                uri.hash = `${prx.org} WS NTLS [${serviceName}]`;
+                return uri.toString();
+              })()
+            };
+
             return {
               ip: prx.prxIP,
               port: prx.prxPort,
               orgz: prx.org,
-              configs
+              config_tls,
+              config_ntls
             };
           });
 
